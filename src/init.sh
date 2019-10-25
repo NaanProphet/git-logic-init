@@ -23,10 +23,6 @@
 ### version: 0.1
 ###
 
-set -e
-# Any subsequent(*) commands which fail will cause the shell script to exit immediately
-# Special thanks to: https://stackoverflow.com/a/2871034/1603489
-
 
 LFS_TYPES=('*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.zip' '*.gz' '*.tgz')
 GIT_META_VERSION=2.0.1
@@ -161,6 +157,11 @@ if ! [ -x "$(command -v git-store-meta.pl)" ] && ! [ -f "${DEST_DIR}/git-store-m
   exit 1
 fi
 
+# make sure local hook is executable, if exists
+if [ -f "${DEST_DIR}/git-store-meta.pl" ]; then
+  chmod a+x "${DEST_DIR}/git-store-meta.pl"
+fi
+
 # Check ignore rules. Assume owner of repo has access to all plugins so
 # that Freeze Files are not needed. Otherwise, manually zip up the Freeze Files
 # folder if needed to the archive
@@ -173,6 +174,10 @@ grep -qxF 'Freeze Files' .gitignore || echo 'Freeze Files' >> .gitignore
 grep -qxF '*.rxdoc' .gitignore || echo '*.rxdoc' >> .gitignore
 
 if ! [ -d "${DEST_DIR}" ]; then
+  set -e
+  # Any subsequent(*) commands which fail will cause the shell script to exit immediately
+  # Special thanks to: https://stackoverflow.com/a/2871034/1603489
+
   bootstrap_repo
 fi
 
