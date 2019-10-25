@@ -20,7 +20,7 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.1
+### version: 0.1.2
 ###
 
 
@@ -184,6 +184,9 @@ if ! [ -d "${DEST_DIR}" ]; then
 
   bootstrap_repo
 fi
+
+# enable pre-commit hook
+touch .git_store_meta
 
 # initialize hooks location (must be done after each clone)
 git config core.hooksPath "${DEST_DIR}"
