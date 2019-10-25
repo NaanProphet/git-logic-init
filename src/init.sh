@@ -36,12 +36,24 @@ MIN_GIT_VERSION="2.9"
 
 # -----------------------------------------------------------------------------
 
-function version_lt() {
-  # Special thanks to: http://ask.xmodulo.com/compare-two-version-numbers.html
-  test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" != "$1";
+# Special thanks to: https://stackoverflow.com/a/3511118/1603489
+function compareVersions () {
+  typeset    IFS='.'
+  typeset -a v1=( $1 )
+  typeset -a v2=( $2 )
+  typeset    n diff
+
+  for (( n=0; n<4; n+=1 )); do
+    diff=$((v1[n]-v2[n]))
+    if [ $diff -ne 0 ] ; then
+      [ $diff -le 0 ] && return -1 || return 1
+      return
+    fi
+  done
+  return 0
 }
 
-backup_hook () {
+function backup_hook () {
   local hook_name=$1
   local hook_path="${HOOKS_DIR}/${hook_name}"
 
@@ -51,7 +63,7 @@ backup_hook () {
   fi
 }
 
-merge_hook () {
+function merge_hook () {
   local hook_name=$1
   local hook_path="${HOOKS_DIR}/${hook_name}"
 
@@ -132,7 +144,8 @@ fi
 
 # check minimum version for git config core.hooksPath
 git_version=`git --version | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/'`
-if version_lt $git_version $MIN_GIT_VERSION; then
+compareVersions $MIN_GIT_VERSION $git_version
+if [ $? -lt 0 ] ; then
   echo "\033[31m Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` to upgrade. \033[0m" >&2
   exit 1
 fi
