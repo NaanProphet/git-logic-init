@@ -29,7 +29,12 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
   * Open Terminal
   * Create a new folder `mkdir myrepo`
   * `cd` into the new folder `myrepo`
-* Pull the latest script from GitHub Releases `curl -L -O https://github.com/NaanProphet/git-logic-init/releases/latest/download/init.sh`
+* Pull the latest script from GitHub Releases
+  ```
+  curl -s -L -O https://github.com/NaanProphet/git-logic-init/releases/latest/download/init.sh \
+  && shasum -a 256 -c <<< "96eff0567f6946576badddfd1a5a82e31b3d5da84436fcf4a06dd58105c0459a *init.sh"
+  ```
+* Checksum verification should pass saying `init.sh: OK`
 * Run script `sh init.sh`
   * This will bootstrap the commit hooks and create the `.githooks` folder (which can be committed into source control)
   * This will also run the command `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
