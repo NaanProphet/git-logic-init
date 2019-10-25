@@ -32,7 +32,7 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 * Pull the latest script from GitHub Releases
   ```
   curl -s -L -O https://github.com/NaanProphet/git-logic-init/releases/latest/download/init.sh \
-  && shasum -a 256 -c <<< "dee84910300ce43cea52e0b9bb781d5e3228f17ca6d9edc0893188fee4d7d79e *init.sh"
+  && shasum -a 256 -c <<< "c4d2d8637a1fcb6b71efacf755b38b3f682e5bde58497e4d81b164109f5ae2bb *init.sh"
   ```
 * Checksum verification should pass saying `init.sh: OK`
 * Run script `sh init.sh`
