@@ -20,11 +20,15 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1
+### version: 0.1.1
 ###
 
 
-LFS_TYPES=('*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.zip' '*.gz' '*.tgz')
+LFS_TYPES=(
+  '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a'
+  '*.zip' '*.gz' '*.tgz'
+  'ProjectData'
+)
 GIT_META_VERSION=2.0.1
 HOOKS_DIR="./.git/hooks"
 DEST_DIR=".githooks"
