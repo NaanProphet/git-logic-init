@@ -1,0 +1,7 @@
+language: bash
+
+before_script:
+    - echo "This test will verify that the latest URL download and checksum provided in the README.md are valid."
+
+script:
+    - CURL_C=`grep 'curl' README.md -A 1` && bash -c "$CURL_C"

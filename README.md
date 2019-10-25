@@ -1,4 +1,5 @@
 # git-logic-init
+[![Build Status](https://travis-ci.org/NaanProphet/git-logic-init.svg?branch=master)](https://travis-ci.org/NaanProphet/git-logic-init)
 
 An init script intended for use versioning Apple Logic projects with Git.
 
