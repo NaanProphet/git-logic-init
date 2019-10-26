@@ -20,7 +20,7 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.2
+### version: 0.1.3
 ###
 
 
@@ -191,3 +191,6 @@ touch .git_store_meta
 # initialize hooks location (must be done after each clone)
 git config core.hooksPath "${DEST_DIR}"
 echo "${DEST_DIR} successfully initialized"
+
+# apply changes for fresh clones
+./"${DEST_DIR}/git-store-meta.pl" --apply
