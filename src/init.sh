@@ -20,14 +20,23 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.3
+### version: 0.1.4
 ###
 
 
 LFS_TYPES=(
-  '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a'
+  '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.alac' '.*aifc'
   '*.zip' '*.gz' '*.tgz'
   'ProjectData'
+)
+# loosely based on https://sound.stackexchange.com/a/38454
+GIT_IGNORE=(
+  '.DS_Store'
+  'Freeze Files'
+  'Undo Data.nosync'
+  'Project File Backups'
+  'Autosave'
+  '*.rxdoc'
 )
 GIT_META_VERSION=2.0.1
 HOOKS_DIR="./.git/hooks"
@@ -86,7 +95,7 @@ bootstrap_repo () {
   # Initialize Git LFS
 
   git lfs install
-  for t in ${LFS_TYPES[@]}; do
+  for t in "${LFS_TYPES[@]}"; do
     git lfs track $t
   done
 
@@ -169,19 +178,17 @@ fi
 # Check ignore rules. Assume owner of repo has access to all plugins so
 # that Freeze Files are not needed. Otherwise, manually zip up the Freeze Files
 # folder if needed to the archive
-#
-# Special thanks to:
-# https://stackoverflow.com/a/3557165/1603489
 touch .gitignore
-grep -qxF '.DS_Store' .gitignore || echo '.DS_Store' >> .gitignore
-grep -qxF 'Freeze Files' .gitignore || echo 'Freeze Files' >> .gitignore
-grep -qxF '*.rxdoc' .gitignore || echo '*.rxdoc' >> .gitignore
+for g in "${GIT_IGNORE[@]}"; do
+  # Special thanks to:
+  # https://stackoverflow.com/a/3557165/1603489
+  grep -qxF "$g" .gitignore || echo "$g" >> .gitignore
+done
 
 if ! [ -d "${DEST_DIR}" ]; then
   set -e
   # Any subsequent(*) commands which fail will cause the shell script to exit immediately
   # Special thanks to: https://stackoverflow.com/a/2871034/1603489
-
   bootstrap_repo
 fi
 
