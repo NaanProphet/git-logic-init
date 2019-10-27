@@ -200,4 +200,9 @@ git config core.hooksPath "${DEST_DIR}"
 echo "${DEST_DIR} successfully initialized"
 
 # apply changes for fresh clones
-./"${DEST_DIR}/git-store-meta.pl" --apply
+if [ -s .git_store_meta ]
+then
+   ./"${DEST_DIR}/git-store-meta.pl" --apply
+else
+   echo ".git_store_meta is empty"
+fi
