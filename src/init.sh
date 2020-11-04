@@ -20,7 +20,7 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.4
+### version: 0.1.5
 ###
 
 
@@ -38,9 +38,12 @@ GIT_IGNORE=(
   'Autosave'
   '*.rxdoc'
 )
-GIT_META_VERSION=2.0.1
-HOOKS_DIR="./.git/hooks"
-DEST_DIR=".githooks"
+GIT_META_REPO="https://raw.githubusercontent.com/NaanProphet/git-store-meta"
+GIT_META_VERSION=2.0.1-dst
+GIT_META_FIELDS="file,type,mtime"
+ORIG_HOOKS_DIR="./.git/hooks"
+NEW_HOOKS_DIR=".githooks"
+LFS_DIR="./.git/lfs"
 MIN_GIT_VERSION="2.9"
 
 # -----------------------------------------------------------------------------
@@ -64,7 +67,7 @@ function compareVersions () {
 
 function backup_hook () {
   local hook_name=$1
-  local hook_path="${HOOKS_DIR}/${hook_name}"
+  local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
 
   if [ -f "${hook_path}" ]; then
     echo "Backing up exiting ${hook_name} hook"
@@ -74,7 +77,7 @@ function backup_hook () {
 
 function merge_hook () {
   local hook_name=$1
-  local hook_path="${HOOKS_DIR}/${hook_name}"
+  local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
 
   if [ -f "${hook_path}.orig" ]; then
     mv "${hook_path}" "${hook_path}.meta"
@@ -86,18 +89,20 @@ function merge_hook () {
   fi
 }
 
-bootstrap_repo () {
+init_repo () {
 
   # Initialize Git
-
   git init
-
+  
   # Initialize Git LFS
-
   git lfs install
   for t in "${LFS_TYPES[@]}"; do
     git lfs track $t
   done
+
+}
+
+bootstrap_hooks () {
 
   # Preserve file timestamps of Audio Files. Otherwise Logic
   # will re-calculate waveforms after checkout and change
@@ -123,16 +128,16 @@ bootstrap_repo () {
   merge_hook post-merge
 
   # cleanup any files left behind
-  rm -f ${HOOKS_DIR}/pre-commit.meta ${HOOKS_DIR}/pre-commit.orig \
-    ${HOOKS_DIR}/post-checkout.meta ${HOOKS_DIR}/post-checkout.orig \
-    ${HOOKS_DIR}/post-merge.meta ${HOOKS_DIR}/post-merge.orig \
-    ${HOOKS_DIR}/*.sample
+  rm -f ${ORIG_HOOKS_DIR}/pre-commit.meta ${ORIG_HOOKS_DIR}/pre-commit.orig \
+    ${ORIG_HOOKS_DIR}/post-checkout.meta ${ORIG_HOOKS_DIR}/post-checkout.orig \
+    ${ORIG_HOOKS_DIR}/post-merge.meta ${ORIG_HOOKS_DIR}/post-merge.orig \
+    ${ORIG_HOOKS_DIR}/*.sample
 
   # move hooks folder out of .git so it can be committed
-  mv -f "${HOOKS_DIR}" "${DEST_DIR}"
+  mv -f "${ORIG_HOOKS_DIR}" "${NEW_HOOKS_DIR}"
 
   # copy git-store-meta locally to make clones easier for others
-  cp `which git-store-meta.pl` "${DEST_DIR}/"
+  cp `which git-store-meta.pl` "${NEW_HOOKS_DIR}/"
 
 }
 
@@ -164,15 +169,18 @@ if ! [ -x "$(command -v git-lfs)" ]; then
   exit 1
 fi
 
-if ! [ -x "$(command -v git-store-meta.pl)" ] && ! [ -f "${DEST_DIR}/git-store-meta.pl" ]; then
-  echo "\033[31m Git Store Meta is not installed. \033[0m" >&2
-  echo "\033[31m Use \`brew cask install NaanProphet/ninjabrew/git-store-meta\` to install. \033[0m" >&2
-  exit 1
+if ! [ -d "${NEW_HOOKS_DIR}" ]; then
+  mkdir "${NEW_HOOKS_DIR}"
+fi
+
+if ! [ -f "${NEW_HOOKS_DIR}/git-store-meta.pl" ]; then
+  echo "\033[32mGit Store Meta not found, downloading... \033[0m" >&2
+  curl -o "${NEW_HOOKS_DIR}/git-store-meta.pl" -s -L -O "${GIT_META_REPO}/${GIT_META_VERSION}/git-store-meta.pl"
 fi
 
 # make sure local hook is executable, if exists
-if [ -f "${DEST_DIR}/git-store-meta.pl" ]; then
-  chmod a+x "${DEST_DIR}/git-store-meta.pl"
+if [ -f "${NEW_HOOKS_DIR}/git-store-meta.pl" ]; then
+  chmod a+x "${NEW_HOOKS_DIR}/git-store-meta.pl"
 fi
 
 # Check ignore rules. Assume owner of repo has access to all plugins so
@@ -185,24 +193,38 @@ for g in "${GIT_IGNORE[@]}"; do
   grep -qxF "$g" .gitignore || echo "$g" >> .gitignore
 done
 
-if ! [ -d "${DEST_DIR}" ]; then
-  set -e
-  # Any subsequent(*) commands which fail will cause the shell script to exit immediately
-  # Special thanks to: https://stackoverflow.com/a/2871034/1603489
-  bootstrap_repo
+if ! [ -d "./.git" ]; then
+	init_repo
+fi
+
+if ! [ -d "${LFS_DIR}" ]; then
+  git lfs install
+fi
+
+# check if repo has a remote, pull LFS files
+git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  git lfs pull
+fi
+
+if ! [ -d "${NEW_HOOKS_DIR}" ]; then
+  bootstrap_hooks
 fi
 
 # enable pre-commit hook
 touch .git_store_meta
 
 # initialize hooks location (must be done after each clone)
-git config core.hooksPath "${DEST_DIR}"
-echo "${DEST_DIR} successfully initialized"
+git config core.hooksPath "${NEW_HOOKS_DIR}"
+echo "\033[32mgit config core.hooksPath [${NEW_HOOKS_DIR}] successfully initialized \033[0m" >&2
 
 # apply changes for fresh clones
 if [ -s .git_store_meta ]
 then
-   ./"${DEST_DIR}/git-store-meta.pl" --apply
+   ./"${NEW_HOOKS_DIR}/git-store-meta.pl" --apply
 else
-   echo ".git_store_meta is empty"
+   # configure empty file
+   ./"${NEW_HOOKS_DIR}/git-store-meta.pl" --store -f "${GIT_META_FIELDS}"
 fi
+
+echo "\033[32mCheers! \033[0m" >&2

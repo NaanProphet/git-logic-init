@@ -1,7 +1,7 @@
 # git-logic-init
 [![Build Status](https://travis-ci.org/NaanProphet/git-logic-init.svg?branch=master)](https://travis-ci.org/NaanProphet/git-logic-init)
 
-An init script intended for use versioning Apple Logic projects with Git.
+An init script for versioning Apple Logic projects with Git.
 
 ## Why
 
@@ -18,7 +18,7 @@ This creates a nightmare for version control and increases the size of the Git r
 ## Solution
 
 1. Use [Git LFS](https://github.com/git-lfs/git-lfs) to store large files and keep the repo size small (based on SHA 256 checksums)
-2. Use [Git Store Meta](https://github.com/danny0838/git-store-meta) to preserve timestamps
+2. Use commit hooks and [Git Store Meta](https://github.com/danny0838/git-store-meta) to preserve and restore timestamps
 
 Since Git commit hooks are scripts, they must—by design—be re-configured each time a repository is created/cloned.
 
@@ -27,30 +27,45 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 * Homebrew
 * Git (>= 2.9)
 * Git LFS
-* Git Store Meta
+* Git Store Meta (custom version to accommodate DST)
+  * see https://github.com/NaanProphet/git-store-meta/tree/2.0.1-dst
+	
+### Side Effects
+
+1. Initializing Git LFS for the first time adds `[filter "lfs"]` commands to `~/.gitconfig` so that ANY repo will automatically pull LFS files upon clone.
+
+```
+[filter "lfs"]
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+```
+
+2. At a local repo level, the default Git hooks directory will change from `.git/hooks` to `.githooks` so that the scripts can be committed.
+
+Use `git rev-parse --git-path hooks` to display the current hooks directory.
 
 ## Usage
 
-### Initial
+### New Repo
 
-* Create a new folder
-  * Open Terminal
-  * Create a new folder `mkdir myrepo`
-  * `cd` into the new folder `myrepo`
-* Pull the latest script from GitHub Releases
+* Create a new folder `mkdir myrepo && cd myrepo`
+* Download the latest script from GitHub Releases
   ```
   curl -s -L -O https://github.com/NaanProphet/git-logic-init/releases/latest/download/init.sh \
-  && shasum -a 256 -c <<< "417d713906b9add06b74113c01f7e7bab14ccabc0f4f9b7ff27f90319169b3ac *init.sh"
+  && shasum -a 256 -c <<< "fb87ac5c8a2774faf5a03af6542ff2acb2cfd445697eacb517fe7e86cd5ffe27 *init.sh"
   ```
 * Checksum verification should pass saying `init.sh: OK`
-* Run script `sh init.sh`
-  * This will bootstrap the commit hooks and create the `.githooks` folder (which can be committed into source control)
-  * This will also run the command `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
+* Run `sh init.sh`
+  * This will setup the commit hooks
+  * create the commit-able `.githooks` folder
+  * and run `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
 * Commit!
 
-### Cloning
+### Clone Existing Repo
 
-To re-initialize a repo that already has a `.githooks` folder, simply run `sh init.sh` again.
+To re-initialize a repo that already has the custom `.githooks` folder, simply run `sh init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
 
 ## Default Rules
 
