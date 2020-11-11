@@ -23,7 +23,9 @@
 ### version: 0.1.5
 ###
 
-
+RELEASE_VERSION="v0.1.5"
+RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
   '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.alac' '.*aifc'
   '*.zip' '*.gz' '*.tgz'
@@ -38,8 +40,6 @@ GIT_IGNORE=(
   'Autosave'
   '*.rxdoc'
 )
-GIT_META_REPO="https://raw.githubusercontent.com/NaanProphet/git-store-meta"
-GIT_META_VERSION=2.0.1-dst
 GIT_META_FIELDS="file,type,mtime"
 ORIG_HOOKS_DIR="./.git/hooks"
 NEW_HOOKS_DIR=".githooks"
@@ -89,7 +89,7 @@ function merge_hook () {
   fi
 }
 
-init_repo () {
+function init_repo () {
 
   # Initialize Git
   git init
@@ -102,7 +102,7 @@ init_repo () {
 
 }
 
-bootstrap_hooks () {
+function bootstrap_hooks () {
 
   # Preserve file timestamps of Audio Files. Otherwise Logic
   # will re-calculate waveforms after checkout and change
@@ -175,7 +175,14 @@ fi
 
 if ! [ -f "${NEW_HOOKS_DIR}/git-store-meta.pl" ]; then
   echo "\033[32mGit Store Meta not found, downloading... \033[0m" >&2
-  curl -o "${NEW_HOOKS_DIR}/git-store-meta.pl" -s -L -O "${GIT_META_REPO}/${GIT_META_VERSION}/git-store-meta.pl"
+  curl -s -L -OO "${RELEASE_BASEURL}/${RELEASE_VERSION}/git-store-meta{.pl,.pl.sha256}"
+  shasum -a256 -c git-store-meta.pl.sha256
+  if [ $? -ne 0 ]; then
+    echo "\033[31mError \033[0m" >&2
+    exit 1
+  fi
+  mv "git-store-meta.pl" "${NEW_HOOKS_DIR}/git-store-meta.pl"
+  mv "git-store-meta.pl.sha256" "${NEW_HOOKS_DIR}"
 fi
 
 # make sure local hook is executable, if exists
@@ -225,6 +232,10 @@ then
 else
    # configure empty file
    ./"${NEW_HOOKS_DIR}/git-store-meta.pl" --store -f "${GIT_META_FIELDS}"
+fi
+if [ $? -ne 0 ]; then
+  echo "\033[31mError \033[0m" >&2
+  exit 1
 fi
 
 echo "\033[32mCheers! \033[0m" >&2
