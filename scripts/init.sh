@@ -20,10 +20,10 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.10
+### version: 0.1.11
 ###
 
-RELEASE_VERSION="v0.1.10"
+RELEASE_VERSION="v0.1.11"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
@@ -90,16 +90,16 @@ function merge_hook () {
 }
 
 function init_repo () {
-
   # Initialize Git
   git init
-  
+}
+
+function init_lfs () {
   # Initialize Git LFS
   git lfs install
   for t in "${LFS_TYPES[@]}"; do
     git lfs track $t
   done
-
 }
 
 function bootstrap_hooks () {
@@ -199,6 +199,12 @@ done
 
 if ! [ -d "./.git" ]; then
   init_repo
+fi
+
+if ! [ -f ".gitattributes" ]; then
+  init_lfs
+elif ! grep -q "lfs" ".gitattributes"; then
+  init_lfs
 fi
 
 if ! [ -d "${LFS_DIR}" ]; then
