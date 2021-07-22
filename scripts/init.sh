@@ -20,10 +20,10 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.6
+### version: 0.1.7
 ###
 
-RELEASE_VERSION="v0.1.6"
+RELEASE_VERSION="v0.1.7"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
@@ -120,7 +120,7 @@ function bootstrap_hooks () {
 
   echo "Initializing Git Store Meta"
   # creates pre-commit, post-checkout and post-merge
-  git-store-meta.pl --install
+  "${NEW_HOOKS_DIR}"/git-store-meta.pl --install
 
   # merge with originals and remove double shebang if present
   merge_hook pre-commit
@@ -201,7 +201,7 @@ for g in "${GIT_IGNORE[@]}"; do
 done
 
 if ! [ -d "./.git" ]; then
-	init_repo
+  init_repo
 fi
 
 if ! [ -d "${LFS_DIR}" ]; then
@@ -214,7 +214,8 @@ if [ $? -eq 0 ]; then
   git lfs pull
 fi
 
-if ! [ -d "${NEW_HOOKS_DIR}" ]; then
+# look for one of the hooks
+if ! [ -f "${NEW_HOOKS_DIR/pre-commit}" ]; then
   bootstrap_hooks
 fi
 
