@@ -12,7 +12,7 @@ sub timestamp_to_gmtime_dst {
     # fetch daylight savings time flag (0 or 1)
     my $dst = (localtime($timestamp))[8];
     # format string to UTC like before
-    my $timestr = strftime("%Y-%m-%dT%H:%M:%SZ", $timestamp);
+    my $timestr = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime($timestamp));
     # persist current machine's DST information in non-standard time string
     return sprintf("%sDST%s", $timestr, $dst);
 }
