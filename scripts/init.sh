@@ -20,14 +20,14 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.13
+### version: 0.1.14
 ###
 
-RELEASE_VERSION="v0.1.13"
+RELEASE_VERSION="v0.1.14"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
-  '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.alac' '.*aifc'
+  '*.wav' '*.aif' '*.aiff' '*.mp3' '*.m4a' '*.alac' '*.aifc' '*.au'
   '*.zip' '*.gz' '*.tgz'
   'ProjectData'
 )

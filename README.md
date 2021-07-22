@@ -116,6 +116,7 @@ The following filetypes will be tracked by Git LFS after initialization:
   * `*.m4a`
   * `*.alac` (Apple Lossless)
   * `*.aifc` (AIFF Compressed)
+  * `*.au` (Audacity raw audio)
 * Archives
   * `*.zip`
   * `*.gz`
