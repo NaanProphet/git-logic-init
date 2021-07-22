@@ -20,10 +20,10 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.11
+### version: 0.1.12
 ###
 
-RELEASE_VERSION="v0.1.11"
+RELEASE_VERSION="v0.1.12"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
@@ -39,6 +39,7 @@ GIT_IGNORE=(
   'Project File Backups'
   'Autosave'
   '*.rxdoc'
+  'Undo Data'
 )
 GIT_META_FIELDS="file,type,mtime"
 ORIG_HOOKS_DIR="./.git/hooks"
