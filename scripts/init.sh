@@ -20,10 +20,10 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.7
+### version: 0.1.8
 ###
 
-RELEASE_VERSION="v0.1.7"
+RELEASE_VERSION="v0.1.8"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
@@ -135,9 +135,6 @@ function bootstrap_hooks () {
 
   # move hooks folder out of .git so it can be committed
   mv -f "${ORIG_HOOKS_DIR}" "${NEW_HOOKS_DIR}"
-
-  # copy git-store-meta locally to make clones easier for others
-  cp `which git-store-meta.pl` "${NEW_HOOKS_DIR}/"
 
 }
 
