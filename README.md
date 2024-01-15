@@ -24,54 +24,26 @@ Since Git does not preserve timestamps, any clone will cause Logic to recalculat
 
 Since Git commit hooks are scripts, they must—by design—be re-configured each time a repository is created/cloned. Running this `init.sh` script once after the clone configures everything automatically.
 
-## Dependencies
 
-* Homebrew
+## Requirements and Dependencies
+
+* Mac OS X, tested on 10.14.6 Mojave thru 14.2.1 Sonoma
+* Homebrew [link](https://brew.sh)
   * Prompts if not installed
 * Git (>= 2.9)
-  * Higher than default version bundled with Mac OS X
+  * Formerly higher than default version bundled with Mac OS X (Sonoma is 2.43.0)
   * Prompts to upgrade if not installed
 * Git LFS
-  * Prompts if not installed
-* Git Store Meta
+  * Prompts if not installed `brew install git-lfs`
+* Git Store Meta [fork/link](https://github.com/NaanProphet/git-store-meta)
   * Custom version to accommodate DST
-  * Automatically downloaded
-  
-## Side Effects
-
-1. Initializing Git LFS for the first time adds some `[filter "lfs"]` entries to your `~/.gitconfig` that automatically checkout LFS files when cloning any repo.
-
-```[filter "lfs"]
-  process = git-lfs filter-process
-  required = true
-  clean = git-lfs clean -- %f
-  smudge = git-lfs smudge -- %f
-```
-This behavior can be disabled inline by turning the smudge filter off in the clone command, if desired.
-```$ GIT_LFS_SKIP_SMUDGE=1 git clone <repo>```
-
-2. At a local repo level, the default Git hooks directory will change from `.git/hooks` to `.githooks` so that the scripts can be committed.
-
-Use `git rev-parse --git-path hooks` to display the current hooks directory for debugging.
+  * Automatically patched and bundled via CI script
 
 ## Usage
 
 ### Clone Existing Repo
 
 To re-initialize a repo that already has the custom `.githooks` folder, simply run `sh init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
-
-### Re-init When DST Changes
-
-The day Daylight Savings Time changes (either in the spring or the fall) you will find a lot of files "changing" because their timestamps supposedly have changed.
-
-If you have not yet opened Logic after DST has changed, simply run `sh init.sh` manually again before opening the project.
-
-If Logic has already recalculated overviews, that means the files themselves have changed. To undo/restore to the original:
-
-1. First restore the files using `git restore <files>`
-2. Then re-run `sh init.sh` the day after the DST change
-
-For more info see, the [How Daylight Savings Time Affects Modified Time](#how-daylight-savings-time-affects-modified-time) section.
 
 ### New Repo
 
@@ -89,9 +61,51 @@ https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,
   * Create the commit-able `.githooks` folder
   * Run `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
 
+### Updating Existing Repo
+
+To update an existing repo to the latest version of `git-logic-init`, simply run the following.
+
+```
+curl -s -L -OO \
+https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,.sh.sha256} \
+&& shasum -a256 -c init.sh.sha256
+```
+
+Then run `sh init.sh`
+
+## ⏭ 🔆 ⏮ DST Ritual: Re-init Twice a Year
+
+The day Daylight Savings Time changes (either in the spring or the fall) you will find a lot of files "changing" because their timestamps supposedly have changed.
+
+If you have not yet opened Logic after DST has changed, simply run `sh init.sh` manually again before opening the project.
+
+If Logic has already recalculated overviews, that means some files themselves have changed. To undo/restore to the original:
+
+1. First restore the files using `git restore <files>`
+2. Then re-run `sh init.sh` the day after the DST change
+
+For more info see, the [How Daylight Savings Time Affects Modified Time](#how-daylight-savings-time-affects-modified-time) section.
+
+## Side Effects
+
+1. Initializing Git LFS for the first time adds some `[filter "lfs"]` entries to your `~/.gitconfig` that automatically checkout LFS files when cloning any repo.
+
+```[filter "lfs"]
+  process = git-lfs filter-process
+  required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+```
+This behavior can be disabled inline by turning the smudge filter off in the clone command, if desired.
+```$ GIT_LFS_SKIP_SMUDGE=1 git clone <repo>```
+
+2. At a local repo level, the default Git hooks directory will change from `.git/hooks` to `.githooks` so that the scripts can be committed.
+
+Use `git rev-parse --git-path hooks` to display the current hooks directory for debugging.
+
 ## Default Rules
 
-## Ignore
+### Ignore
 
 The following files/folders are automatically added to the repo's `.gitignore` to prevent too much chatter. Loosely based on https://sound.stackexchange.com/a/38454.
 
