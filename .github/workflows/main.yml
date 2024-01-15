@@ -1,0 +1,43 @@
+on:
+  workflow_dispatch:
+
+jobs:
+  my_job:
+  
+    name: prepare draft release
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout
+      uses: actions/checkout@v4.1.1
+      
+    - name: Patch DST
+    # Downloads the vanilla Git Store Meta source (from a fork, for backup)
+    # and applies the DST patch needed for Logic X
+      run: "${{ github.workspace }}/scripts/bootstrap.sh"
+        
+    - name: Test Compile
+      run: "${{ github.workspace }}/test/download.sh"
+    
+    - name: Test Verify
+      run: |
+        cd ${{ github.workspace }}/test
+        PERL5LIB=${{ github.workspace }}/test perl dst-hack.t
+        cd ${{ github.workspace }}
+        
+    - name: Generate Checksums
+      run: |
+        cd ${{ github.workspace }}/scripts
+        sha256sum "init.sh" > "init.sh.sha256"
+        sha256sum "git-store-meta.pl" > "git-store-meta.pl.sha256"
+        cd ${{ github.workspace }}
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+          files: |
+            scripts/init.sh
+            scripts/init.sh.sha256
+            scripts/git-store-meta.pl
+            scripts/git-store-meta.pl.sha256
+          draft: true

@@ -1,5 +1,5 @@
 # git-logic-init
-[![Build Status](https://travis-ci.com/NaanProphet/git-logic-init.svg?branch=master)](https://travis-ci.com/NaanProphet/git-logic-init)
+[![Build Status](https://github.com/NaanProphet/git-logic-init/actions/workflows/main.yml/badge.svg)](https://github.com/NaanProphet/git-logic-init/actions/workflows/main.yml)
 
 Retrofit init script for versioning Apple Logic projects with Git.
 
