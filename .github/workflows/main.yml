@@ -1,0 +1,20 @@
+on:
+  workflow_dispatch:
+
+jobs:
+  my_job:
+    name: prepare draft release
+    runs-on: macos-10.15
+    steps:
+    - name: Step 1
+      run: |
+        "./scripts/bootstrap.sh"
+        "./test/download.sh"
+    - name: Patch DST
+      run: cd ./test && perl dst-hack.t; cd -
+    - name: Generate Checksums
+      run: |
+        cd scripts
+        sha256sum "init.sh" > "init.sh.sha256"
+        sha256sum "git-store-meta.pl" > "git-store-meta.pl.sha256"
+        cd ..
