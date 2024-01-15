@@ -20,10 +20,10 @@
 ### - To start over, remove all temp files using: `rm -rf .git*`
 ###
 ### Author: Krishna Bhamidipati (NaanProphet)
-### version: 0.1.14
+### version: 0.1.15
 ###
 
-RELEASE_VERSION="v0.1.14"
+RELEASE_VERSION="v0.1.15"
 RELEASE_BASEURL="https://github.com/NaanProphet/git-logic-init/releases/download"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 LFS_TYPES=(
@@ -46,6 +46,8 @@ ORIG_HOOKS_DIR="./.git/hooks"
 NEW_HOOKS_DIR=".githooks"
 LFS_DIR="./.git/lfs"
 MIN_GIT_VERSION="2.9"
+# uncomment the line below to enable DEBUG logging
+#DEBUG=true
 
 # -----------------------------------------------------------------------------
 
@@ -69,10 +71,14 @@ function compareVersions () {
 function backup_hook () {
   local hook_name=$1
   local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
+  local hook_path_secondary=".githooks/${hook_name}"
 
   if [ -f "${hook_path}" ]; then
-    echo "Backing up exiting ${hook_name} hook"
+    [[ "$DEBUG" ]] && echo "Backing up existing ${hook_name} hook"
     mv "${hook_path}" "${hook_path}.orig"
+  elif [ -f "${hook_path_secondary}" ]; then
+    [[ "$DEBUG" ]] && echo "Backing up existing ${hook_name} hook before upgrade"
+    mv "${hook_path_secondary}" "${hook_path}.orig"
   fi
 }
 
@@ -81,14 +87,35 @@ function merge_hook () {
   local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
 
   if [ -f "${hook_path}.orig" ]; then
-    mv "${hook_path}" "${hook_path}.meta"
-    cp "${hook_path}.orig" "${hook_path}"
-    # exclude double shebang
-    echo "" >> "${hook_path}"
-    cat "${hook_path}.meta" | sed '/^#!/ d' >> "${hook_path}"
-    echo "Merged changes into ${hook_name} hook"
+        
+    # count the number of lines that are NOT in the original
+    # special thanks to:
+    # https://stackoverflow.com/a/31561396/1603489
+    num_new_lines=`diff $hook_path.orig $hook_path | grep "> " | wc -l`
+
+    if cmp --silent "${hook_path}.orig" "${hook_path}" ; then
+      # files are identical, short-circuit merge logic
+      echo "Merge found no changes in ${hook_name} hook"
+      
+    elif [ "$num_new_lines" -eq "0" ]; then
+      echo "Merge found no new lines in ${hook_name} hook, keeping original"
+      # keep the original
+      mv "${hook_path}" "${hook_path}.meta"
+      cp "${hook_path}.orig" "${hook_path}"
+      
+    else
+      # append git-store-meta commit hook info to existing
+      mv "${hook_path}" "${hook_path}.meta"
+      cp "${hook_path}.orig" "${hook_path}"
+      # exclude double shebang
+      echo "" >> "${hook_path}"
+      cat "${hook_path}.meta" | sed '/^#!/ d' >> "${hook_path}"
+      echo "Merged changes into ${hook_name} hook"
+      
+    fi
+    
   fi
-}
+} # end function merge_hook
 
 function init_repo () {
   # Initialize Git
@@ -97,6 +124,7 @@ function init_repo () {
 
 function init_lfs () {
   # Initialize Git LFS
+  # creates git hooks for: pre-push, post-checkout, post-commit, post-merge
   git lfs install
   for t in "${LFS_TYPES[@]}"; do
     git lfs track "$t"
@@ -120,7 +148,7 @@ function bootstrap_hooks () {
   backup_hook post-merge
 
   echo "Initializing Git Store Meta"
-  # creates pre-commit, post-checkout and post-merge
+  # creates git hooks for: pre-commit, post-checkout and post-merge
   "${NEW_HOOKS_DIR}"/git-store-meta.pl --install
 
   # merge with originals and remove double shebang if present
