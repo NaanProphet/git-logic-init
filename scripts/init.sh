@@ -226,6 +226,12 @@ for g in "${GIT_IGNORE[@]}"; do
   grep -qxF "$g" .gitignore || echo "$g" >> .gitignore
 done
 
+if [ "$(git diff --name-only .gitignore | wc -l)" -gt 0 ]; then
+  echo "\033[32mChanges successfully made to .gitignore\033[0m"
+  echo "\033[31mPlease commit changes first and then re-run init.sh again\033[0m"
+  exit
+fi
+
 if ! [ -d "./.git" ]; then
   init_repo
 fi
