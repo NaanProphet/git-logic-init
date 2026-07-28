@@ -9,7 +9,7 @@ jobs:
     steps:
     
     - name: Checkout
-      uses: actions/checkout@v4.1.1
+      uses: actions/checkout@v6
       
     - name: Patch DST
     # Downloads the vanilla Git Store Meta source (from a fork, for backup)
@@ -33,7 +33,7 @@ jobs:
         cd ${{ github.workspace }}
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
           files: |
             scripts/init.sh
