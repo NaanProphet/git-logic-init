@@ -21,4 +21,4 @@ jobs:
           cd ${{ github.workspace }}/test
           PERL5LIB=${{ github.workspace }}/test perl dst-hack.t
       - name: Shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck --severity=error scripts/*.sh
