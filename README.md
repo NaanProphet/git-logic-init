@@ -28,6 +28,9 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 ## Requirements and Dependencies
 
 * Mac OS X, tested on 10.14.6 Mojave thru 14.2.1 Sonoma
+* Bash, to match the script's `#!/bin/bash` shebang
+  * The copy bundled with Mac OS X (3.2) is sufficient; nothing newer is required
+  * Run the script with `bash init.sh`, not `sh init.sh`
 * A package manager: Homebrew [link](https://brew.sh) or MacPorts [link](https://www.macports.org)
   * Neither is required, but at least one is recommended; the script warns if neither is found
   * As of 2026 MacPorts still officially supports Mojave, while Homebrew does not
@@ -44,7 +47,7 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 
 ### Clone Existing Repo
 
-To re-initialize a repo that already has the custom `.githooks` folder, simply run `sh init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
+To re-initialize a repo that already has the custom `.githooks` folder, simply run `bash init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
 
 ### New Repo
 
@@ -57,7 +60,7 @@ https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,
 ```
 
 * Checksum verification should pass saying `init.sh: OK`
-* Run `sh init.sh`. This will do the following:
+* Run `bash init.sh`. This will do the following:
   * Setup the commit hooks
   * Create the commit-able `.githooks` folder
   * Run `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
@@ -72,18 +75,18 @@ https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,
 && shasum -a256 -c init.sh.sha256
 ```
 
-Then run `sh init.sh`
+Then run `bash init.sh`
 
 ## ⏭ 🔆 ⏮ DST Ritual: Re-init Twice a Year
 
 The day Daylight Savings Time changes (either in the spring or the fall) you will find a lot of files "changing" because their timestamps supposedly have changed.
 
-If you have not yet opened Logic after DST has changed, simply run `sh init.sh` manually again before opening the project.
+If you have not yet opened Logic after DST has changed, simply run `bash init.sh` manually again before opening the project.
 
 If Logic has already recalculated overviews, that means some files themselves have changed. To undo/restore to the original:
 
 1. First restore the files using `git restore <files>`
-2. Then re-run `sh init.sh` the day after the DST change
+2. Then re-run `bash init.sh` the day after the DST change
 
 For more info see, the [How Daylight Savings Time Affects Modified Time](#how-daylight-savings-time-affects-modified-time) section.
 

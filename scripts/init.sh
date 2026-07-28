@@ -81,6 +81,25 @@ function compareVersions () {
   echo '0'
 }
 
+# All user-facing messages go through these three helpers. printf expands \033
+# identically whether bash is in POSIX/sh mode or not, unlike the echo builtin, whose
+# escape handling depends on the xpg_echo flag Apple enables only in sh mode -- so
+# `bash init.sh` and `./init.sh` used to print a literal \033[31m. See issue #15.
+#
+# The message is passed as a %s argument, so a % in a path or filename is never read
+# as a format specifier.
+function err () {
+  printf >&2 '\033[31m %s \033[0m\n' "$1"
+}
+
+function warn () {
+  printf >&2 '\033[33m %s \033[0m\n' "$1"
+}
+
+function info () {
+  printf >&2 '\033[32m %s \033[0m\n' "$1"
+}
+
 # Echoes the package manager present on this machine: "brew", "port", or nothing
 # at all. Homebrew wins when both are installed, since its install needs no sudo.
 # The script never calls either one -- this only decides whether to warn that
@@ -205,24 +224,24 @@ fi
 PKG_MANAGER="$(detect_pkg_manager)"
 
 if [ -z "${PKG_MANAGER}" ]; then
-  echo "\033[33m WARNING: neither Homebrew nor MacPorts was found! \033[0m" >&2
-  echo "\033[33m Installing one of them is highly recommended. \033[0m" >&2
+  warn "WARNING: neither Homebrew nor MacPorts was found!"
+  warn "Installing one of them is highly recommended."
 fi
 
 if ! [ -x "$(command -v git)" ]; then
-  echo "\033[31m Git is not installed. Use \`brew install git\` or \`sudo port install git\` to install. \033[0m" >&2
+  err 'Git is not installed. Use `brew install git` or `sudo port install git` to install.'
   exit 1
 fi
 
 # check minimum version for git config core.hooksPath
 git_version=`git --version | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/'`
 if [ "$(compareVersions "$MIN_GIT_VERSION" "$git_version")" -eq 1 ] ; then
-  echo "\033[31m Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` or \`sudo port selfupdate && sudo port upgrade git\` to upgrade. \033[0m" >&2
+  err "Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` or \`sudo port selfupdate && sudo port upgrade git\` to upgrade."
   exit 1
 fi
 
 if ! [ -x "$(command -v git-lfs)" ]; then
-  echo "\033[31m Git LFS is not installed. Use \`brew install git-lfs\` or \`sudo port install git-lfs\` to install. \033[0m" >&2
+  err 'Git LFS is not installed. Use `brew install git-lfs` or `sudo port install git-lfs` to install.'
   exit 1
 fi
 
@@ -231,11 +250,11 @@ if ! [ -d "${NEW_HOOKS_DIR}" ]; then
 fi
 
 if ! [ -f "${NEW_HOOKS_DIR}/git-store-meta.pl" ]; then
-  echo "\033[32mGit Store Meta not found, downloading... \033[0m" >&2
+  info "Git Store Meta not found, downloading..."
   curl -s -L -OO "${RELEASE_BASEURL}/${RELEASE_VERSION}/git-store-meta{.pl,.pl.sha256}"
   shasum -a256 -c git-store-meta.pl.sha256
   if [ $? -ne 0 ]; then
-    echo "\033[31mError \033[0m" >&2
+    err "Error"
     exit 1
   fi
   mv "git-store-meta.pl" "${NEW_HOOKS_DIR}/git-store-meta.pl"
@@ -258,8 +277,8 @@ for g in "${GIT_IGNORE[@]}"; do
 done
 
 if [ "$(git diff --name-only .gitignore | wc -l)" -gt 0 ]; then
-  echo "\033[32mChanges successfully made to .gitignore\033[0m"
-  echo "\033[31mPlease commit changes first and then re-run init.sh again\033[0m"
+  info "Changes successfully made to .gitignore"
+  err "Please commit changes first and then re-run init.sh again"
   exit
 fi
 
@@ -293,7 +312,7 @@ touch .git_store_meta
 
 # initialize hooks location (must be done after each clone)
 git config core.hooksPath "${NEW_HOOKS_DIR}"
-echo "\033[32mgit config core.hooksPath [${NEW_HOOKS_DIR}] successfully initialized \033[0m" >&2
+info "git config core.hooksPath [${NEW_HOOKS_DIR}] successfully initialized"
 
 # apply changes for fresh clones
 if [ -s .git_store_meta ]
@@ -304,8 +323,8 @@ else
    ./"${NEW_HOOKS_DIR}/git-store-meta.pl" --store -f "${GIT_META_FIELDS}"
 fi
 if [ $? -ne 0 ]; then
-  echo "\033[31mError \033[0m" >&2
+  err "Error"
   exit 1
 fi
 
-echo "\033[32mCheers! \033[0m" >&2
+info "Cheers!"
