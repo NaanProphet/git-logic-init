@@ -51,7 +51,19 @@ MIN_GIT_VERSION="2.9"
 
 # -----------------------------------------------------------------------------
 
-# Special thanks to: https://stackoverflow.com/a/3511118/1603489
+# Compares two dot-separated version strings, writing the verdict to stdout 
+# (NOT the exit status):
+#
+#   -1 if $1 <  $2
+#    0 if $1 == $2
+#    1 if $1 >  $2
+#
+# Compares up to four numeric components; components absent from the shorter
+# string expand to 0, so "2.9", "2.9.0" and "2.9.0.0" all compare equal. The
+# 10# prefix forces base 10 so a zero-padded component (2.09) is not read as
+# octal, and makes an empty/unparsed version compare as 0.0.0.0.
+#
+# Initial thanks to: https://stackoverflow.com/a/3511118/1603489
 function compareVersions () {
   typeset    IFS='.'
   typeset -a v1=( $1 )
@@ -59,13 +71,13 @@ function compareVersions () {
   typeset    n diff
 
   for (( n=0; n<4; n+=1 )); do
-    diff=$((v1[n]-v2[n]))
+    diff=$(( 10#0${v1[n]} - 10#0${v2[n]} ))
     if [ $diff -ne 0 ] ; then
-      [ $diff -le 0 ] && return -1 || return 1
+      [ $diff -lt 0 ] && echo '-1' || echo '1'
       return
     fi
   done
-  return 0
+  echo '0'
 }
 
 function backup_hook () {
@@ -169,6 +181,12 @@ function bootstrap_hooks () {
 
 # -----------------------------------------------------------------------------
 
+# Unit tests source this script to exercise the functions above. The sentinel
+# below stops before any side effects. See test/compare-versions.t
+if [ -n "${SOURCE_FUNCTIONS_ONLY}" ]; then
+  return 0
+fi
+
 # Check for binaries
 
 if ! [ -x "$(command -v brew)" ]; then
@@ -184,8 +202,7 @@ fi
 
 # check minimum version for git config core.hooksPath
 git_version=`git --version | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/'`
-compareVersions $MIN_GIT_VERSION $git_version
-if [ $? -lt 0 ] ; then
+if [ "$(compareVersions "$MIN_GIT_VERSION" "$git_version")" -eq 1 ] ; then
   echo "\033[31m Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` to upgrade. \033[0m" >&2
   exit 1
 fi

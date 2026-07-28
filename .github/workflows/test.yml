@@ -20,5 +20,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}/test
           PERL5LIB=${{ github.workspace }}/test perl dst-hack.t
+      - name: Test Version Gate
+        run: bash "${{ github.workspace }}/test/compare-versions.t"
       - name: Shellcheck
         run: shellcheck --severity=error scripts/*.sh
