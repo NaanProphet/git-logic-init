@@ -9,7 +9,7 @@ use Term::ANSIColor;
 # use relative module for less deps
 use MockTime;
 
-# To run tests, simply run `perl dst-hack.t` FROM this folder
+# To run tests, simply run `perl dst-hack.pl.t` FROM this folder
 
 # special thanks to:
 # http://www.jmdeldin.com/bioinf/testing/index.html

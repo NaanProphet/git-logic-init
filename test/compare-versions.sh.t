@@ -3,7 +3,7 @@
 ## Unit tests for compareVersions() and the Git version gate in scripts/init.sh
 ## See https://github.com/NaanProphet/git-logic-init/issues/14
 ##
-## To run tests, simply run `bash compare-versions.t` from this folder.
+## To run tests, simply run `bash compare-versions.sh.t` from this folder.
 ## Output is TAP-ish; exits non-zero if any assertion fails.
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

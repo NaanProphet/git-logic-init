@@ -17,10 +17,19 @@ jobs:
       - name: Test Compile
         run: "${{ github.workspace }}/test/download.sh"
       - name: Test Verify
+      # Runs every test case, so new ones need no change here. Name them
+      # *.pl.t to be run with perl, or *.sh.t to be run with bash.
         run: |
-          cd ${{ github.workspace }}/test
-          PERL5LIB=${{ github.workspace }}/test perl dst-hack.t
-      - name: Test Version Gate
-        run: bash "${{ github.workspace }}/test/compare-versions.t"
+          cd "${{ github.workspace }}/test"
+          status=0
+          for t in *.pl.t; do
+            echo "# ${t}"
+            PERL5LIB="${PWD}" perl "${t}" || status=1
+          done
+          for t in *.sh.t; do
+            echo "# ${t}"
+            bash "${t}" || status=1
+          done
+          exit $status
       - name: Shellcheck
         run: shellcheck --severity=error scripts/*.sh

@@ -28,13 +28,14 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 ## Requirements and Dependencies
 
 * Mac OS X, tested on 10.14.6 Mojave thru 14.2.1 Sonoma
-* Homebrew [link](https://brew.sh)
-  * Prompts if not installed
+* A package manager: Homebrew [link](https://brew.sh) or MacPorts [link](https://www.macports.org)
+  * Neither is required, but at least one is recommended; the script warns if neither is found
+  * As of 2026 MacPorts still officially supports Mojave, while Homebrew does not
 * Git (>= 2.9)
   * Formerly higher than default version bundled with Mac OS X (Sonoma is 2.43.0)
-  * Prompts to upgrade if not installed
+  * Prompts to upgrade if too old
 * Git LFS
-  * Prompts if not installed `brew install git-lfs`
+  * Prompts if not installed
 * Git Store Meta [fork/link](https://github.com/NaanProphet/git-store-meta)
   * Custom version to accommodate DST
   * Automatically patched and bundled via CI script
@@ -176,7 +177,7 @@ In order to adjust/account for this, the original timestring format `YYYY-MM-DDT
 * `DST0` indicates the file was modified when DST was off
 * `DST1` indicates the file was modified when DST was in effect
 
-For details, see the test cases inside [dst-hack.t](test/dst-hack.t). These are run automatically with Travis CI.
+For details, see the test cases inside [dst-hack.pl.t](test/dst-hack.pl.t). These are run automatically with Travis CI.
 
 ![Perl component tests as part of CI/CD](docs/perl-tests.png)
 

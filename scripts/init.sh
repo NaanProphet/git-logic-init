@@ -13,7 +13,8 @@
 ### how file timestamps are preserved with commit hooks.
 ###
 ### Platform: Mac OS X
-### Dependencies: Homebrew, Git (>= 2.9), Git LFS, Git Store Meta
+### Dependencies: Git (>= 2.9), Git LFS, Git Store Meta
+### Recommended: Homebrew or MacPorts, to install the above
 ###
 ### Development notes:
 ### - The bootstrapping process is NOT idempotent.
@@ -78,6 +79,18 @@ function compareVersions () {
     fi
   done
   echo '0'
+}
+
+# Echoes the package manager present on this machine: "brew", "port", or nothing
+# at all. Homebrew wins when both are installed, since its install needs no sudo.
+# The script never calls either one -- this only decides whether to warn that
+# dependencies may have to be installed by hand.
+function detect_pkg_manager () {
+  if [ -x "$(command -v brew)" ]; then
+    echo 'brew'
+  elif [ -x "$(command -v port)" ]; then
+    echo 'port'
+  fi
 }
 
 function backup_hook () {
@@ -182,33 +195,34 @@ function bootstrap_hooks () {
 # -----------------------------------------------------------------------------
 
 # Unit tests source this script to exercise the functions above. The sentinel
-# below stops before any side effects. See test/compare-versions.t
+# below stops before any side effects. See test/compare-versions.sh.t
 if [ -n "${SOURCE_FUNCTIONS_ONLY}" ]; then
   return 0
 fi
 
 # Check for binaries
 
-if ! [ -x "$(command -v brew)" ]; then
-  echo "\033[31m Homebrew is not installed. \033[0m" >&2
-  echo "\033[31m Visit https://brew.sh for one-line install instructions. \033[0m"
-  exit 1
+PKG_MANAGER="$(detect_pkg_manager)"
+
+if [ -z "${PKG_MANAGER}" ]; then
+  echo "\033[33m WARNING: neither Homebrew nor MacPorts was found! \033[0m" >&2
+  echo "\033[33m Installing one of them is highly recommended. \033[0m" >&2
 fi
 
 if ! [ -x "$(command -v git)" ]; then
-  echo "\033[31m Git is not installed. Use \`brew install git\` to install. \033[0m" >&2
+  echo "\033[31m Git is not installed. Use \`brew install git\` or \`sudo port install git\` to install. \033[0m" >&2
   exit 1
 fi
 
 # check minimum version for git config core.hooksPath
 git_version=`git --version | perl -pe '($_)=/([0-9]+([.][0-9]+)+)/'`
 if [ "$(compareVersions "$MIN_GIT_VERSION" "$git_version")" -eq 1 ] ; then
-  echo "\033[31m Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` to upgrade. \033[0m" >&2
+  echo "\033[31m Git version $git_version must be >= $MIN_GIT_VERSION. Use \`brew upgrade git\` or \`sudo port selfupdate && sudo port upgrade git\` to upgrade. \033[0m" >&2
   exit 1
 fi
 
 if ! [ -x "$(command -v git-lfs)" ]; then
-  echo "\033[31m Git LFS is not installed. Use \`brew install git-lfs\` to install. \033[0m" >&2
+  echo "\033[31m Git LFS is not installed. Use \`brew install git-lfs\` or \`sudo port install git-lfs\` to install. \033[0m" >&2
   exit 1
 fi
 
