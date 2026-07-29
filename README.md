@@ -88,7 +88,7 @@ If you have not yet opened Logic after DST has changed, run `git pull` and then 
 If Logic has already recalculated overviews, that means some files themselves have changed. To undo/restore to the original:
 
 1. First restore the files using `git restore <files>`
-2. Then run `git pull && bash init.sh` the day after the DST change
+2. Then run `bash init.sh` the day after the DST change
 
 For more info see, the [How Daylight Savings Time Affects Modified Time](#how-daylight-savings-time-affects-modified-time) section.
 
@@ -126,7 +126,7 @@ Git runs exactly one file per event, but two tools need to run on some of them. 
 
 A few things worth knowing:
 
-* **The number is sort order, not priority.** Parts run in plain sort order, and that order matters: Git LFS has to restore the file contents before Git Store Meta stamps the timestamps back on. Renaming a part changes when it runs.
+* **The number determines run order.** Parts run in plain sort order, and that order matters: Git LFS has to restore the file contents before Git Store Meta stamps the timestamps back on. Renaming a part changes when it runs.
 * **Pad to two digits and leave gaps.** `9-` sorts *after* `10-`.
 * **`10-` and `20-` are regenerated** every time `bash init.sh` runs. Anything else in the folder is yours and is left alone, so add your own steps as `50-`, `60-` and so on rather than editing the generated parts.
 * **Non-executable files are skipped**, as are editor leftovers (`20-foo~`, `.bak`, `.orig`, `.rej`). To disable a part temporarily, `chmod a-x` it.
@@ -152,9 +152,9 @@ git-logic-init=v0.2.0
 * **A new Git LFS hook is adopted automatically.** LFS originally installed only `pre-push`; `post-checkout`, `post-commit` and `post-merge` came later. If a future version adds a fifth, it appears during a regeneration and is picked up—unlike pinning the hook text, where a new hook would simply never show up and nothing would say so.
 * **A repo with no `VERSIONS` file regenerates exactly once**, commits one diff, and is stable afterwards.
 
-Two things worth knowing before this bites you:
+Two things worth knowing:
 
-* **The load-bearing assumption is that newer LFS hooks stay callable by older LFS binaries.** After Alice upgrades to Git LFS 3.9 and commits, Bob on 3.3 is running a hook authored by 3.9. This is *not* the same as "LFS is backwards compatible with old hooks". It has held historically because the hook is a thin wrapper around `git lfs <name> "$@"` and those subcommands have been stable for years—but it is an assumption, not a guarantee.
+* **The assumption is that newer LFS hooks stay callable by older LFS binaries.** After Alice upgrades to Git LFS 3.9 and commits, Bob on 3.3 is running a hook authored by 3.9. This is *not* the same as "LFS is backwards compatible with old hooks". It has held historically because the hook is a thin wrapper around `git lfs <name> "$@"` and those subcommands have been stable for years—but it is an assumption, not a guarantee.
 * **`git lfs install --force` overwrites the committed hooks** with raw LFS templates, clobbering the dispatcher. Re-running `bash init.sh` from a machine at or above the recorded version restores them, at the cost of one spurious diff. Every generated file carries a `# Managed by git-logic-init` comment so you can tell at a glance what used to be there.
 
 `init.sh` itself is committed alongside `.githooks`, so the script and `VERSIONS` arrive in the same commit and stay in step. If you ever run an `init.sh` *older* than the one that wrote the hooks—by dropping a newer copy into the folder and running it before committing, say—it refuses and exits rather than regenerating everything backwards. Run `git pull` and try again; if Git cannot update `init.sh` because it is untracked or locally modified, replace it from Releases.
