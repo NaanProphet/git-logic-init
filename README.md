@@ -28,13 +28,17 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 ## Requirements and Dependencies
 
 * Mac OS X, tested on 10.14.6 Mojave thru 14.2.1 Sonoma
-* Homebrew [link](https://brew.sh)
-  * Prompts if not installed
+* Bash, to match the script's `#!/bin/bash` shebang
+  * The copy bundled with Mac OS X (3.2) is sufficient; nothing newer is required
+  * Run the script with `bash init.sh`, not `sh init.sh`
+* A package manager: Homebrew [link](https://brew.sh) or MacPorts [link](https://www.macports.org)
+  * Neither is required, but at least one is recommended; the script warns if neither is found
+  * As of 2026 MacPorts still officially supports Mojave, while Homebrew does not
 * Git (>= 2.9)
   * Formerly higher than default version bundled with Mac OS X (Sonoma is 2.43.0)
-  * Prompts to upgrade if not installed
+  * Prompts to upgrade if too old
 * Git LFS
-  * Prompts if not installed `brew install git-lfs`
+  * Prompts if not installed
 * Git Store Meta [fork/link](https://github.com/NaanProphet/git-store-meta)
   * Custom version to accommodate DST
   * Automatically patched and bundled via CI script
@@ -43,7 +47,7 @@ Since Git commit hooks are scripts, they must—by design—be re-configured eac
 
 ### Clone Existing Repo
 
-To re-initialize a repo that already has the custom `.githooks` folder, simply run `sh init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
+To re-initialize a repo that already has the custom `.githooks` folder, simply run `bash init.sh` again. The script will prompt if any dependencies are missing (git-lfs, etc.)
 
 ### New Repo
 
@@ -56,7 +60,7 @@ https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,
 ```
 
 * Checksum verification should pass saying `init.sh: OK`
-* Run `sh init.sh`. This will do the following:
+* Run `bash init.sh`. This will do the following:
   * Setup the commit hooks
   * Create the commit-able `.githooks` folder
   * Run `git config core.hooksPath .githooks` at the end to setup the custom hooks folder
@@ -71,18 +75,20 @@ https://github.com/NaanProphet/git-logic-init/releases/latest/download/init{.sh,
 && shasum -a256 -c init.sh.sha256
 ```
 
-Then run `sh init.sh`
+Then run `bash init.sh`.
+
+Commit the updated `init.sh` along with whatever changes it makes to `.githooks`. Keeping the script in the repo is what keeps it in step with `.githooks/VERSIONS`, so everyone else picks up both halves with a plain `git pull`.
 
 ## ⏭ 🔆 ⏮ DST Ritual: Re-init Twice a Year
 
 The day Daylight Savings Time changes (either in the spring or the fall) you will find a lot of files "changing" because their timestamps supposedly have changed.
 
-If you have not yet opened Logic after DST has changed, simply run `sh init.sh` manually again before opening the project.
+If you have not yet opened Logic after DST has changed, run `git pull` and then `bash init.sh` manually again before opening the project. Pull first so that you pick up any newer hooks a collaborator has committed—see [When the Hooks Get Regenerated](#when-the-hooks-get-regenerated).
 
 If Logic has already recalculated overviews, that means some files themselves have changed. To undo/restore to the original:
 
 1. First restore the files using `git restore <files>`
-2. Then re-run `sh init.sh` the day after the DST change
+2. Then run `bash init.sh` the day after the DST change
 
 For more info see, the [How Daylight Savings Time Affects Modified Time](#how-daylight-savings-time-affects-modified-time) section.
 
@@ -102,6 +108,62 @@ This behavior can be disabled inline by turning the smudge filter off in the clo
 2. At a local repo level, the default Git hooks directory will change from `.git/hooks` to `.githooks` so that the scripts can be committed.
 
 Use `git rev-parse --git-path hooks` to display the current hooks directory for debugging.
+
+## How the Hooks Are Laid Out
+
+Git runs exactly one file per event, but two tools need to run on some of them. So each hook is a small generated *dispatcher* that runs every executable file in a sibling `<hookname>.d` folder:
+
+```
+.githooks/
+  git-store-meta.pl
+  VERSIONS                 # which tool version wrote which part
+  post-checkout            # dispatcher, generated
+  post-checkout.d/
+    10-git-lfs             # from `git lfs install`
+    20-git-store-meta      # from `git-store-meta.pl --install`
+    50-my-own-script       # yours; never touched
+```
+
+A few things worth knowing:
+
+* **The number determines run order.** Parts run in plain sort order, and that order matters: Git LFS has to restore the file contents before Git Store Meta stamps the timestamps back on. Renaming a part changes when it runs.
+* **Pad to two digits and leave gaps.** `9-` sorts *after* `10-`.
+* **`10-` and `20-` are regenerated** every time `bash init.sh` runs. Anything else in the folder is yours and is left alone, so add your own steps as `50-`, `60-` and so on rather than editing the generated parts.
+* **Non-executable files are skipped**, as are editor leftovers (`20-foo~`, `.bak`, `.orig`, `.rej`). To disable a part temporarily, `chmod a-x` it.
+* **`pre-*` hooks stop at the first failing part**, so a failure blocks the commit or push. Git ignores the exit status of `post-*` hooks, so those report the failure and keep going. Either way the dispatcher names the part that failed.
+* **`pre-push` accepts only one part.** Git sends it data on standard input, and standard input is a stream—the first part to read it consumes it. Rather than silently give a second part nothing to read, the dispatcher refuses to run.
+
+### When the Hooks Get Regenerated
+
+`10-git-lfs` and `20-git-store-meta` are byte-exact copies of what Git LFS and Git Store Meta emit, so they change whenever a contributor's copy of those tools differs from the one that last wrote them. Left alone, that shows up as an unexplained working-tree diff after somebody upgrades—Git LFS v3.6.0 switched the hooks from `echo` to `printf`, v3.4.0 reworded a `core.hookspath` message, and each of those flips the file back and forth as different people run `bash init.sh`.
+
+`.githooks/VERSIONS` records which version of each tool wrote each part:
+
+```
+# Managed by git-logic-init -- regenerated by init.sh, do not edit.
+git-lfs=3.7.0
+git-store-meta=v2.0.1+sha256.abcdef012345
+git-logic-init=v0.2.0
+```
+
+* **It is committed on purpose.** Local `git config` is not cloned, so the value has to travel with the repo. It is safe to keep in `.githooks` because Git only ever runs a file whose name matches a hook exactly—anything else in that folder is inert. It is deliberately not a dotfile, since it is the file that explains why the hooks did or did not change.
+* **Regeneration is monotonic.** A part is only rewritten by a machine whose copy of that tool is *newer* than the version recorded here; everybody else leaves it byte-identical. The newest contributor's output then propagates to the whole team through an ordinary commit, and running `bash init.sh` twice in a row leaves `git status` clean.
+* **The two tools ratchet independently**, because they live in separate files. Bumping the Git Store Meta pin refreshes `20-git-store-meta` on a machine whose Git LFS is older than the marker, without touching `10-git-lfs`.
+* **A new Git LFS hook is adopted automatically.** LFS originally installed only `pre-push`; `post-checkout`, `post-commit` and `post-merge` came later. If a future version adds a fifth, it appears during a regeneration and is picked up—unlike pinning the hook text, where a new hook would simply never show up and nothing would say so.
+* **A repo with no `VERSIONS` file regenerates exactly once**, commits one diff, and is stable afterwards.
+
+Two things worth knowing:
+
+* **The assumption is that newer LFS hooks stay callable by older LFS binaries.** After Alice upgrades to Git LFS 3.9 and commits, Bob on 3.3 is running a hook authored by 3.9. This is *not* the same as "LFS is backwards compatible with old hooks". It has held historically because the hook is a thin wrapper around `git lfs <name> "$@"` and those subcommands have been stable for years—but it is an assumption, not a guarantee.
+* **`git lfs install --force` overwrites the committed hooks** with raw LFS templates, clobbering the dispatcher. Re-running `bash init.sh` from a machine at or above the recorded version restores them, at the cost of one spurious diff. Every generated file carries a `# Managed by git-logic-init` comment so you can tell at a glance what used to be there.
+
+`init.sh` itself is committed alongside `.githooks`, so the script and `VERSIONS` arrive in the same commit and stay in step. If you ever run an `init.sh` *older* than the one that wrote the hooks—by dropping a newer copy into the folder and running it before committing, say—it refuses and exits rather than regenerating everything backwards. Run `git pull` and try again; if Git cannot update `init.sh` because it is untracked or locally modified, replace it from Releases.
+
+### Upgrading from the Merged Hooks
+
+Earlier versions merged both tools into a single file per hook. Running `bash init.sh` migrates a repo to the layout above and copies the old merged hooks to `.githooks/pre-migration/` first. Everything generated is recreated automatically, so that folder only matters if you had hand-edited something into a hook—move it into a part of your own if so. Once timestamps are confirmed to still restore, delete `pre-migration/`.
+
+Migrate one repo and confirm in Logic that it does not recalculate overviews before doing the rest.
 
 ## Default Rules
 
@@ -176,7 +238,7 @@ In order to adjust/account for this, the original timestring format `YYYY-MM-DDT
 * `DST0` indicates the file was modified when DST was off
 * `DST1` indicates the file was modified when DST was in effect
 
-For details, see the test cases inside [dst-hack.t](test/dst-hack.t). These are run automatically with Travis CI.
+For details, see the test cases inside [dst-hack.pl.t](test/dst-hack.pl.t). These are run automatically with Travis CI.
 
 ![Perl component tests as part of CI/CD](docs/perl-tests.png)
 
