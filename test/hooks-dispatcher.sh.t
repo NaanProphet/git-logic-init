@@ -216,6 +216,35 @@ is "$(tr '\n' ' ' < "${WORK}/log")" "lfs:old new 1 meta:old new 1 " \
   "parts run 10- before 20-, each with the hook's arguments"
 
 ## ---------------------
+## The whole point of the refactor: the dispatch loop lives once in
+## dispatcher-common.sh, and every per-hook file is a thin stub that execs it.
+## ---------------------
+echo "# the dispatch loop is shared, not copied into every hook"
+
+file_exists "${CASE}/.githooks/dispatcher-common.sh" "dispatcher-common.sh is generated"
+if [ -x "${CASE}/.githooks/dispatcher-common.sh" ]; then
+  ok "dispatcher-common.sh is executable"
+else
+  not_ok "dispatcher-common.sh is executable"
+fi
+
+if grep -q 'is_part' "${CASE}/.githooks/post-checkout"; then
+  not_ok "the stub does not embed a copy of the dispatch loop"
+else
+  ok "the stub does not embed a copy of the dispatch loop"
+fi
+
+COMMON_BEFORE="$(cksum < "${CASE}/.githooks/dispatcher-common.sh")"
+write_dispatcher "${CASE}/.githooks" pre-commit
+is "$?" "0" "a second hook's dispatcher is generated"
+is "$(cksum < "${CASE}/.githooks/dispatcher-common.sh")" "${COMMON_BEFORE}" \
+  "dispatcher-common.sh is unchanged by generating a second hook"
+
+rm -f "${WORK}/log"
+"${CASE}/.githooks/pre-commit"
+is "$?" "0" "the second hook's stub runs via the shared dispatcher-common.sh"
+
+## ---------------------
 ## Skipped files. A non-executable part is inert, and so is an editor backup --
 ## which keeps its mode when copied from an executable part, hence the
 ## explicit suffix check.

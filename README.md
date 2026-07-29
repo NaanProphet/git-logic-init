@@ -111,13 +111,14 @@ Use `git rev-parse --git-path hooks` to display the current hooks directory for 
 
 ## How the Hooks Are Laid Out
 
-Git runs exactly one file per event, but two tools need to run on some of them. So each hook is a small generated *dispatcher* that runs every executable file in a sibling `<hookname>.d` folder:
+Git runs exactly one file per event, but two tools need to run on some of them. So each hook is a small generated *stub* that execs a shared `dispatcher-common.sh`, which runs every executable file in a sibling `<hookname>.d` folder:
 
 ```
 .githooks/
   git-store-meta.pl
   VERSIONS                 # which tool version wrote which part
-  post-checkout            # dispatcher, generated
+  dispatcher-common.sh     # the dispatch loop, shared by every hook stub
+  post-checkout            # stub, generated: execs dispatcher-common.sh
   post-checkout.d/
     10-git-lfs             # from `git lfs install`
     20-git-store-meta      # from `git-store-meta.pl --install`
@@ -126,6 +127,7 @@ Git runs exactly one file per event, but two tools need to run on some of them. 
 
 A few things worth knowing:
 
+* **The stub carries only what differs per hook** -- its name and the two flags below -- and execs `dispatcher-common.sh` to do the actual work. That one file is shared by every hook rather than copied into each, so it exists exactly once no matter how many hooks are generated.
 * **The number determines run order.** Parts run in plain sort order, and that order matters: Git LFS has to restore the file contents before Git Store Meta stamps the timestamps back on. Renaming a part changes when it runs.
 * **Pad to two digits and leave gaps.** `9-` sorts *after* `10-`.
 * **`10-` and `20-` are regenerated** every time `bash init.sh` runs. Anything else in the folder is yours and is left alone, so add your own steps as `50-`, `60-` and so on rather than editing the generated parts.
