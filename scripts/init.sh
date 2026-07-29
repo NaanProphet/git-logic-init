@@ -43,8 +43,17 @@ GIT_IGNORE=(
   'Undo Data'
 )
 GIT_META_FIELDS="file,type,mtime"
-ORIG_HOOKS_DIR="./.git/hooks"
 NEW_HOOKS_DIR=".githooks"
+# Git runs exactly one file per event, so each hook is a generated dispatcher
+# that runs every executable part in a sibling <hookname>.d folder, in sort
+# order. The prefixes below are sort order, not priority: LFS has to restore
+# file contents before Git Store Meta stamps the timestamps back on. Two
+# digits, with gaps, so parts can be slotted in between later.
+LFS_PART="10-git-lfs"
+META_PART="20-git-store-meta"
+# One-time copy of the old single-file merged hooks, so hand edits are
+# recoverable. Safe to delete once the new hooks are known to work.
+MIGRATION_DIR="pre-migration"
 LFS_DIR="./.git/lfs"
 MIN_GIT_VERSION="2.9"
 # uncomment the line below to enable DEBUG logging
@@ -112,55 +121,6 @@ function detect_pkg_manager () {
   fi
 }
 
-function backup_hook () {
-  local hook_name=$1
-  local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
-  local hook_path_secondary=".githooks/${hook_name}"
-
-  if [ -f "${hook_path}" ]; then
-    [[ "$DEBUG" ]] && echo "Backing up existing ${hook_name} hook"
-    mv "${hook_path}" "${hook_path}.orig"
-  elif [ -f "${hook_path_secondary}" ]; then
-    [[ "$DEBUG" ]] && echo "Backing up existing ${hook_name} hook before upgrade"
-    mv "${hook_path_secondary}" "${hook_path}.orig"
-  fi
-}
-
-function merge_hook () {
-  local hook_name=$1
-  local hook_path="${ORIG_HOOKS_DIR}/${hook_name}"
-
-  if [ -f "${hook_path}.orig" ]; then
-        
-    # count the number of lines that are NOT in the original
-    # special thanks to:
-    # https://stackoverflow.com/a/31561396/1603489
-    num_new_lines=`diff $hook_path.orig $hook_path | grep "> " | wc -l`
-
-    if cmp --silent "${hook_path}.orig" "${hook_path}" ; then
-      # files are identical, short-circuit merge logic
-      echo "Merge found no changes in ${hook_name} hook"
-      
-    elif [ "$num_new_lines" -eq "0" ]; then
-      echo "Merge found no new lines in ${hook_name} hook, keeping original"
-      # keep the original
-      mv "${hook_path}" "${hook_path}.meta"
-      cp "${hook_path}.orig" "${hook_path}"
-      
-    else
-      # append git-store-meta commit hook info to existing
-      mv "${hook_path}" "${hook_path}.meta"
-      cp "${hook_path}.orig" "${hook_path}"
-      # exclude double shebang
-      echo "" >> "${hook_path}"
-      cat "${hook_path}.meta" | sed '/^#!/ d' >> "${hook_path}"
-      echo "Merged changes into ${hook_name} hook"
-      
-    fi
-    
-  fi
-} # end function merge_hook
-
 function init_repo () {
   # Initialize Git
   git init
@@ -169,9 +129,285 @@ function init_repo () {
 function init_lfs () {
   # Initialize Git LFS
   # creates git hooks for: pre-push, post-checkout, post-commit, post-merge
-  git lfs install
+  #
+  # `git lfs install` writes its hooks to core.hooksPath when that is set, so
+  # on a re-run -- where this script has already pointed core.hooksPath at
+  # .githooks -- LFS would write over the generated dispatchers. -c forces the
+  # staging location for this one invocation without recording it anywhere.
+  git -c core.hooksPath="$(staging_hooks_dir)" lfs install
   for t in "${LFS_TYPES[@]}"; do
     git lfs track "$t"
+  done
+}
+
+# Where both generators are made to write, before their output is harvested
+# into .githooks. NOT `git rev-parse --git-path hooks`, which resolves through
+# core.hooksPath and would answer ".githooks" on a re-run. This matches what
+# git-store-meta uses internally for --install.
+function staging_hooks_dir () {
+  echo "$(git rev-parse --git-dir)/hooks"
+}
+
+# Copies each pre-dispatcher merged hook to .githooks/pre-migration/ before it
+# is regenerated. The generated halves are recreated from scratch anyway; the
+# copy exists only so that anything hand-edited into the merged file is
+# recoverable rather than lost. A hook that already has a .d folder is
+# dispatcher-era and is left alone.
+function migrate_legacy_hooks () {
+  local hooks_dir=$1
+  local migration_dir="${hooks_dir}/${MIGRATION_DIR}"
+  local hook_path hook
+
+  for hook_path in "${hooks_dir}"/*; do
+    # skips the .d folders and pre-migration itself, which are not files
+    [ -f "${hook_path}" ] || continue
+    hook="$(basename "${hook_path}")"
+    # everything else in here (git-store-meta.pl, its checksum) is inert: Git
+    # only executes files whose name matches a hook exactly
+    case "${hook}" in
+      pre-*|post-*|commit-msg|prepare-commit-msg) ;;
+      *) continue ;;
+    esac
+    [ -d "${hook_path}.d" ] && continue
+
+    mkdir -p "${migration_dir}" || return 1
+    warn "Backing up merged ${hook} hook to ${migration_dir}/"
+    cp "${hook_path}" "${migration_dir}/${hook}" || return 1
+  done
+}
+
+# Empties the staging folder so that whatever a generator leaves behind is
+# unambiguously that generator's output. Samples are Git's own boilerplate and
+# are simply removed; anything else is somebody's hook, so it is set aside
+# rather than deleted.
+function clear_staging_hooks () {
+  local staging_dir=$1
+  local hooks_dir=$2
+  local migration_dir="${hooks_dir}/${MIGRATION_DIR}"
+  local hook_path hook
+
+  [ -d "${staging_dir}" ] || return 0
+  rm -f "${staging_dir}"/*.sample
+
+  for hook_path in "${staging_dir}"/*; do
+    [ -f "${hook_path}" ] || continue
+    hook="$(basename "${hook_path}")"
+    mkdir -p "${migration_dir}" || return 1
+    warn "Moving unexpected ${hook_path} to ${migration_dir}/${hook}.staging"
+    mv "${hook_path}" "${migration_dir}/${hook}.staging" || return 1
+  done
+}
+
+# Drops one named part from every .d folder, so that a hook a tool no longer
+# generates does not keep a stale part around.
+function remove_parts () {
+  local hooks_dir=$1
+  local part_name=$2
+  local part_dir
+
+  for part_dir in "${hooks_dir}"/*.d; do
+    [ -d "${part_dir}" ] || continue
+    rm -f "${part_dir}/${part_name}"
+  done
+}
+
+# Harvests everything Git LFS just wrote into the staging folder. The file name
+# *is* the hook name, so the parts can be collected by iterating rather than by
+# hardcoding a list -- a hook added by a future git-lfs is picked up for free.
+function harvest_lfs_parts () {
+  local staging_dir=$1
+  local hooks_dir=$2
+  local src hook dst
+  local found=0
+
+  for src in "${staging_dir}"/*; do
+    [ -f "${src}" ] || continue
+    hook="$(basename "${src}")"
+
+    # verify the part really was produced before moving it into place
+    if ! grep -q 'git.lfs' "${src}"; then
+      err "unexpected content in generated ${hook} hook; expected a Git LFS hook"
+      return 1
+    fi
+
+    dst="${hooks_dir}/${hook}.d/${LFS_PART}"
+    mkdir -p "${hooks_dir}/${hook}.d" || return 1
+    mv "${src}" "${dst}" || return 1
+    chmod a+x "${dst}" || return 1
+    found=$((found+1))
+  done
+
+  if [ "${found}" -eq 0 ]; then
+    err "Git LFS did not generate any hooks in ${staging_dir}"
+    return 1
+  fi
+}
+
+# Same harvest for Git Store Meta, plus the interpreter-path rewrite.
+#
+# Each generated hook finds the Perl script relative to itself:
+#
+#   script=$(dirname "$0")/git-store-meta.pl
+#   [ ! -x "$script" ] && script=git-store-meta.pl
+#
+# That resolved while the hook sat at .githooks/<name>. A part at
+# .githooks/<name>.d/<part> is one directory deeper, so it misses, and the
+# fallback is a bare PATH lookup that misses too: pre-commit would exit 1
+# (loud) but post-checkout and post-merge would exit 127, which Git ignores --
+# timestamps would quietly stop being restored and Logic would resume
+# recalculating overviews, with nothing reported. git-logic-init owns this
+# folder hierarchy, so git-logic-init fixes the path.
+function harvest_store_meta_parts () {
+  local staging_dir=$1
+  local hooks_dir=$2
+  local src hook dst tmp
+  local found=0
+
+  for src in "${staging_dir}"/*; do
+    [ -f "${src}" ] || continue
+    hook="$(basename "${src}")"
+    dst="${hooks_dir}/${hook}.d/${META_PART}"
+    tmp="${src}.tmp"
+
+    # `|` as the delimiter because the pattern contains `/`, and a single
+    # quoted sed script so $(dirname "$0") stays literal
+    sed 's|^script=$(dirname "$0")/git-store-meta\.pl$|script=$(dirname "$0")/../git-store-meta.pl|' \
+      "${src}" > "${tmp}"
+
+    # Catches a changed hook format when TAG_COMMIT is bumped, rather than
+    # shipping broken parts -- git-store-meta v2.1.2, for one, passes the
+    # filename through escapeshellarg and so emits it in quotes. Writing to
+    # $tmp first matters: `>` truncates before sed runs, so failing straight
+    # into $dst would leave a zero-byte part that the dispatcher silently
+    # skips as non-executable.
+    if ! grep -qF 'script=$(dirname "$0")/../git-store-meta.pl' "${tmp}"; then
+      err "git-store-meta hook format changed; interpreter path not rewritten in ${hook}"
+      rm -f "${tmp}"
+      return 1
+    fi
+
+    mkdir -p "${hooks_dir}/${hook}.d" || return 1
+    mv "${tmp}" "${dst}" || return 1
+    rm -f "${src}"
+    chmod a+x "${dst}" || return 1
+    found=$((found+1))
+  done
+
+  if [ "${found}" -eq 0 ]; then
+    err "Git Store Meta did not generate any hooks in ${staging_dir}"
+    return 1
+  fi
+}
+
+# Writes the dispatcher for one hook. The output is byte-identical every run --
+# no timestamps, no version strings -- so re-running init.sh leaves git status
+# clean.
+function write_dispatcher () {
+  local hooks_dir=$1
+  local hook=$2
+  local part_dir="${hooks_dir}/${hook}.d"
+  local dispatcher="${hooks_dir}/${hook}"
+  local abort_on_error=0
+  local stdin_sensitive=0
+  local n_parts=0
+  local part
+
+  # A failing pre-* hook should block the operation, so stop at the first
+  # non-zero. Git ignores the exit status of post-* hooks entirely, so
+  # aborting there would only skip the remaining parts for no benefit.
+  case "${hook}" in
+    pre-*) abort_on_error=1 ;;
+  esac
+
+  # stdin is a stream: the first part to read it consumes it. Only these hooks
+  # receive anything on stdin, and today each has a single part, so no
+  # buffering is needed -- but a second part would otherwise see EOF and
+  # silently do nothing, so refuse instead. post-rewrite is the plausible
+  # future addition: client-side, reads stdin, fires after amend and rebase.
+  case "${hook}" in
+    pre-push|post-rewrite) stdin_sensitive=1 ;;
+  esac
+
+  if [ "${stdin_sensitive}" -eq 1 ]; then
+    for part in "${part_dir}"/*; do
+      [ -x "${part}" ] || continue
+      n_parts=$((n_parts+1))
+    done
+    if [ "${n_parts}" -gt 1 ]; then
+      err "${hook}: multiple parts require stdin buffering, which this dispatcher does not implement"
+      return 1
+    fi
+  fi
+
+  # The header below carries the only substituted values; the body after it is
+  # copied out verbatim, so $hook and friends there resolve at hook run time.
+  {
+    cat <<EOF
+#!/bin/sh
+# Generated by git-logic-init -- do not edit.
+hook=${hook}
+abort_on_error=${abort_on_error}
+stdin_sensitive=${stdin_sensitive}
+EOF
+    cat <<'EOF'
+
+# Runs every executable part in <hook>.d, in sort order. Parts are named
+# NN-<tool>; the number is sort order, not priority. Parts named 10- and 20-
+# are regenerated by init.sh -- anything you add yourself is never touched.
+
+dir=$(dirname "$0")/$hook.d
+[ -d "$dir" ] || exit 0
+
+# Non-executable files are skipped, which covers most editor leftovers -- but
+# a backup of an executable part keeps its mode, so name those out explicitly.
+is_part () {
+    [ -x "$1" ] || return 1
+    case "$1" in
+        *~|*.bak|*.orig|*.rej) return 1 ;;
+    esac
+    return 0
+}
+
+if [ "$stdin_sensitive" -eq 1 ]; then
+    n_parts=0
+    for part in "$dir"/*; do
+        is_part "$part" || continue
+        n_parts=$((n_parts+1))
+    done
+    if [ "$n_parts" -gt 1 ]; then
+        printf >&2 '%s\n' "$hook: multiple parts require stdin buffering, which this dispatcher does not implement"
+        exit 1
+    fi
+fi
+
+status=0
+for part in "$dir"/*; do
+    is_part "$part" || continue
+    "$part" "$@" || {
+        rc=$?
+        # name the part, otherwise a failing hook means hunting for which one
+        printf >&2 '%s\n' "$hook: part $(basename "$part") exited $rc"
+        [ "$abort_on_error" -eq 1 ] && exit $rc
+        status=$rc
+    }
+done
+exit $status
+EOF
+  } > "${dispatcher}" || return 1
+
+  chmod a+x "${dispatcher}" || return 1
+}
+
+# One dispatcher per .d folder, so a hook only exists if something generates
+# parts for it.
+function write_dispatchers () {
+  local hooks_dir=$1
+  local part_dir hook
+
+  for part_dir in "${hooks_dir}"/*.d; do
+    [ -d "${part_dir}" ] || continue
+    hook="$(basename "${part_dir}" .d)"
+    write_dispatcher "${hooks_dir}" "${hook}" || return 1
   done
 }
 
@@ -182,33 +418,32 @@ function bootstrap_hooks () {
   # the checksums!! Special thanks to:
   # https://github.com/danny0838/git-store-meta
   #
-  # Run install to write commit hooks pre-commit, post-checkout
-  # and post-merge *before* LFS' hooks. Otherwise the `install`
-  # command will fail.
+  # Both tools generate whole hook files, so each is run in turn against an
+  # empty staging folder and its output harvested into its own part. Nothing
+  # is merged, so nothing has to be guessed at -- and the two can then be
+  # updated independently.
 
-  # move originals from LFS, if present
-  backup_hook pre-commit
-  backup_hook post-checkout
-  backup_hook post-merge
+  local staging_dir
+  staging_dir="$(staging_hooks_dir)"
 
-  echo "Initializing Git Store Meta"
-  # creates git hooks for: pre-commit, post-checkout and post-merge
-  "${NEW_HOOKS_DIR}"/git-store-meta.pl --install
+  migrate_legacy_hooks "${NEW_HOOKS_DIR}" || return 1
+  clear_staging_hooks "${staging_dir}" "${NEW_HOOKS_DIR}" || return 1
 
-  # merge with originals and remove double shebang if present
-  merge_hook pre-commit
-  merge_hook post-checkout
-  merge_hook post-merge
+  info "Initializing Git LFS hooks"
+  # creates git hooks for: pre-push, post-checkout, post-commit, post-merge
+  remove_parts "${NEW_HOOKS_DIR}" "${LFS_PART}"
+  git -c core.hooksPath="${staging_dir}" lfs install || return 1
+  harvest_lfs_parts "${staging_dir}" "${NEW_HOOKS_DIR}" || return 1
 
-  # cleanup any files left behind
-  rm -f ${ORIG_HOOKS_DIR}/pre-commit.meta ${ORIG_HOOKS_DIR}/pre-commit.orig \
-    ${ORIG_HOOKS_DIR}/post-checkout.meta ${ORIG_HOOKS_DIR}/post-checkout.orig \
-    ${ORIG_HOOKS_DIR}/post-merge.meta ${ORIG_HOOKS_DIR}/post-merge.orig \
-    ${ORIG_HOOKS_DIR}/*.sample
+  info "Initializing Git Store Meta hooks"
+  # creates git hooks for: pre-commit, post-checkout and post-merge.
+  # --force because the staging folder is emptied above, rather than having
+  # the existing hooks shuffled out of the way one at a time first.
+  remove_parts "${NEW_HOOKS_DIR}" "${META_PART}"
+  "${NEW_HOOKS_DIR}"/git-store-meta.pl --install --force || return 1
+  harvest_store_meta_parts "${staging_dir}" "${NEW_HOOKS_DIR}" || return 1
 
-  # move hooks folder out of .git so it can be committed
-  mv -f "${ORIG_HOOKS_DIR}"/* "${NEW_HOOKS_DIR}"
-
+  write_dispatchers "${NEW_HOOKS_DIR}" || return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -293,7 +528,8 @@ elif ! grep -q "lfs" ".gitattributes"; then
 fi
 
 if ! [ -d "${LFS_DIR}" ]; then
-  git lfs install
+  # same reason as in init_lfs: keep LFS out of .githooks
+  git -c core.hooksPath="$(staging_hooks_dir)" lfs install
 fi
 
 # check if repo has a remote, pull LFS files
@@ -304,7 +540,10 @@ fi
 
 # look for one of the hooks
 if ! [ -f "${NEW_HOOKS_DIR/pre-commit}" ]; then
-  bootstrap_hooks
+  if ! bootstrap_hooks; then
+    err "Error setting up commit hooks"
+    exit 1
+  fi
 fi
 
 # enable pre-commit hook

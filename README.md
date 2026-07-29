@@ -107,6 +107,35 @@ This behavior can be disabled inline by turning the smudge filter off in the clo
 
 Use `git rev-parse --git-path hooks` to display the current hooks directory for debugging.
 
+## How the Hooks Are Laid Out
+
+Git runs exactly one file per event, but two tools need to run on some of them. So each hook is a small generated *dispatcher* that runs every executable file in a sibling `<hookname>.d` folder:
+
+```
+.githooks/
+  git-store-meta.pl
+  post-checkout            # dispatcher, generated
+  post-checkout.d/
+    10-git-lfs             # from `git lfs install`
+    20-git-store-meta      # from `git-store-meta.pl --install`
+    50-my-own-script       # yours; never touched
+```
+
+A few things worth knowing:
+
+* **The number is sort order, not priority.** Parts run in plain sort order, and that order matters: Git LFS has to restore the file contents before Git Store Meta stamps the timestamps back on. Renaming a part changes when it runs.
+* **Pad to two digits and leave gaps.** `9-` sorts *after* `10-`.
+* **`10-` and `20-` are regenerated** every time `bash init.sh` runs. Anything else in the folder is yours and is left alone, so add your own steps as `50-`, `60-` and so on rather than editing the generated parts.
+* **Non-executable files are skipped**, as are editor leftovers (`20-foo~`, `.bak`, `.orig`, `.rej`). To disable a part temporarily, `chmod a-x` it.
+* **`pre-*` hooks stop at the first failing part**, so a failure blocks the commit or push. Git ignores the exit status of `post-*` hooks, so those report the failure and keep going. Either way the dispatcher names the part that failed.
+* **`pre-push` accepts only one part.** Git sends it data on standard input, and standard input is a stream—the first part to read it consumes it. Rather than silently give a second part nothing to read, the dispatcher refuses to run.
+
+### Upgrading from the Merged Hooks
+
+Earlier versions merged both tools into a single file per hook. Running `bash init.sh` migrates a repo to the layout above and copies the old merged hooks to `.githooks/pre-migration/` first. Everything generated is recreated automatically, so that folder only matters if you had hand-edited something into a hook—move it into a part of your own if so. Once timestamps are confirmed to still restore, delete `pre-migration/`.
+
+Migrate one repo and confirm in Logic that it does not recalculate overviews before doing the rest.
+
 ## Default Rules
 
 ### Ignore
